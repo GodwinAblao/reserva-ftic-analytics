@@ -152,7 +152,7 @@ def monthly_counts(df: pd.DataFrame, facility_name: str | None = None) -> pd.Ser
         data = data[data["facility_name"] == facility_name]
     if data.empty or "reservation_date" not in data.columns:
         return pd.Series(dtype=float)
-    return data.groupby(pd.Grouper(key="reservation_date", freq="ME")).size()
+    return data.groupby(pd.Grouper(key="reservation_date", freq="M")).size()
 
 
 def facility_list(df: pd.DataFrame) -> list[dict[str, Any]]:
