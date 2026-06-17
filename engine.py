@@ -198,14 +198,9 @@ def facility_list(df: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def meta_payload(df: pd.DataFrame, source: str, live_count: int) -> dict[str, Any]:
-    labels = {
-        "live": "Live database only",
-        "demo": "Demo dataset only",
-        "combined": "Combined dataset (demo + live)",
-    }
     return {
-        "source": source,
-        "dataSourceLabel": labels.get(source, "Auto data source"),
+        "source": "live",
+        "dataSourceLabel": "Live",
         "reservationCount": live_count if source == "live" else len(df),
         "totalRows": len(df),
         "facilities": facility_list(df),
@@ -513,7 +508,7 @@ def export_this_week_csv() -> str:
     week_df = df[mask]
     for name, grp in week_df.groupby("facility_name"):
         approved = int((grp["status"] == "Approved").sum())
-        pending = int(grp["status"].isin(["Pending", "Suggested"]).sum())
+        pending = int((grp["status"] == "Pending").sum())
         lines.append(f"{name},{approved},{pending}")
 
     return "\n".join(lines) + "\n"

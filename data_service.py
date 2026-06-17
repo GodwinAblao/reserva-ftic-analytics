@@ -10,8 +10,8 @@ import os
 import pandas as pd
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-ANALYTICS_STATUSES = ("Approved", "Pending", "Suggested")
-COUNT_STATUSES = ("Approved", "Pending", "Suggested", "Rejected", "Cancelled")
+ANALYTICS_STATUSES = ("Approved", "Pending")
+COUNT_STATUSES = ("Approved", "Pending", "Rejected", "Cancelled")
 DEFAULT_FACILITIES = [
     {"id": 1, "name": "CS Project Room", "capacity": 48},
     {"id": 2, "name": "Discussion Room 3", "capacity": 6},
@@ -223,28 +223,19 @@ def load_from_csv() -> pd.DataFrame:
 
 
 def resolve_dataframe(data_source: str = "auto") -> tuple[pd.DataFrame, str, int]:
-    """Return (dataframe, source_label, live_count). source: live | demo | combined"""
+    """Return (dataframe, source_label, live_count). Always returns all data as 'Live'."""
     live_df = load_from_database()
     live_count = 0 if live_df is None else len(live_df)
     demo_df = load_from_csv()
 
-    if data_source == "demo" or data_source == "dummy":
-        return demo_df.copy(), "demo", live_count
-    elif data_source == "live":
-        return (live_df.copy() if live_df is not None else pd.DataFrame(columns=RESERVATION_COLUMNS)), "live", live_count
-    elif data_source == "combined":
-        if live_df is not None and not live_df.empty and not demo_df.empty:
-            combined_df = pd.concat([demo_df, live_df], ignore_index=True)
-            return combined_df, "combined", live_count
-        elif live_df is not None and not live_df.empty:
-            return live_df.copy(), "combined", live_count
-        else:
-            return demo_df.copy(), "combined", live_count
+    # Always combine all available data and label as 'live'
+    if live_df is not None and not live_df.empty and not demo_df.empty:
+        combined_df = pd.concat([demo_df, live_df], ignore_index=True)
+        return combined_df, "live", live_count
+    elif live_df is not None and not live_df.empty:
+        return live_df.copy(), "live", live_count
     else:
-        # Default 'auto' behavior
-        if live_count > 0:
-            return live_df.copy(), "live", live_count
-        return demo_df.copy(), "demo", live_count
+        return demo_df.copy(), "live", live_count
 
 
 def analytics_dataframe(facility_id: int | None = None, data_source: str = "auto") -> tuple[pd.DataFrame, str, int]:
@@ -292,7 +283,7 @@ def load_daily_overview(days: int = 30, data_source: str = "auto") -> dict:
                         """
                         SELECT CAST(reservation_date AS DATE) AS dt, COUNT(*) AS cnt
                         FROM reservation
-                        WHERE status IN ('Approved','Pending','Suggested')
+                        WHERE status IN ('Approved','Pending')
                           AND CAST(reservation_date AS DATE) BETWEEN %s AND %s
                         GROUP BY CAST(reservation_date AS DATE)
                         """,
