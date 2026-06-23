@@ -35,27 +35,6 @@ def _reservation_hours(df: pd.DataFrame) -> pd.Series:
     return extracted.fillna("00").astype(int).astype(str).str.zfill(2)
 
 
-def _top_events_dict(df: pd.DataFrame) -> dict[str, int]:
-    if df.empty:
-        return {}
-    if "event_name" in df.columns and df["event_name"].notna().any():
-        series = df["event_name"].fillna("Untitled Event")
-    elif "name" in df.columns:
-        series = df["name"].fillna("Untitled Event")
-    else:
-        return {}
-    return {str(k): int(v) for k, v in series.value_counts().head(12).items()}
-
-
-def _per_facility_chart_value(fc: dict[str, Any]) -> float:
-    if fc.get("forecast"):
-        return float(sum(fc["forecast"].values()))
-    hist = fc.get("historical") or {}
-    if hist:
-        return float(list(hist.values())[-1])
-    return 0.0
-
-
 def _series_dict(series: pd.Series) -> dict[str, float]:
     out: dict[str, float] = {}
     for idx, val in series.items():
@@ -238,24 +217,9 @@ def planning_analytics(facility_id: int | None = None, facility_name: str | None
 
     event_types = approved["purpose"].value_counts() if not approved.empty else pd.Series(dtype=int)
 
-    per_facility_forecasts = []
-    for fac in facility_list(df)[:12]:
-        name = fac["name"]
-        fc = arima_forecast_series(weekly_counts(df, name), 4, "W", min_periods=4)
-        per_facility_forecasts.append(
-            {
-                "facility": name,
-                "forecast": fc["forecast"],
-                "historical": fc["historical"],
-                "insufficient_data": fc["insufficient_data"],
-                "chart_value": _per_facility_chart_value(fc),
-            }
-        )
-
     return {
         **meta,
         "forecast_series": {"weekly": weekly, "monthly": monthly},
-        "per_facility_weekly": per_facility_forecasts,
         "peak_demand_hours": {f"{k}:00": int(v) for k, v in peak_hours.items()},
         "recommended_room_capacity": room_capacity.to_dict() if not room_capacity.empty else {},
         "participation_trends": _series_dict(monthly_participation),
@@ -380,7 +344,7 @@ def leading_analytics(facility_id: int | None = None, data_source: str = "auto")
     meta = meta_payload(df, source, live_count)
 
     if df.empty:
-        return {**meta, "overall_completion_rate": 0, "event_success_by_type": {}}
+        return {**meta, "overall_completion_rate": 0}
 
     status_counts = df["status"].value_counts()
     total = len(df)
@@ -390,12 +354,6 @@ def leading_analytics(facility_id: int | None = None, data_source: str = "auto")
     rso = df[df["rso_letter_attached"] == True] if "rso_letter_attached" in df.columns else pd.DataFrame()
     rso_rate = (
         round((rso["status"] == "Approved").mean() * 100, 1) if len(rso) else 0.0
-    )
-
-    success = (
-        df.groupby("purpose")["status"]
-        .apply(lambda s: round((s == "Approved").mean() * 100, 1))
-        .sort_values(ascending=False)
     )
 
     approved_df = _approved_df(df)
@@ -415,8 +373,6 @@ def leading_analytics(facility_id: int | None = None, data_source: str = "auto")
         )
         if not _approved_df(df).empty
         else 0.0,
-        "event_success_by_type": {str(k): float(v) for k, v in success.items()},
-        "top_events": _top_events_dict(df),
         "participant_demand_trend": participation_trends,
     }
 
